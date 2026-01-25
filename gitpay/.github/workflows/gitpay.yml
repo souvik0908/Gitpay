@@ -1,0 +1,45 @@
+name: GitPay Payout Agent
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  pay_contributor:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install Flask python-dotenv cryptocom-agent-client web3 requests PyJWT cryptography
+
+      - name: Run Payout Agent
+        env:
+          # --- SECRETS (From Repo Settings) ---
+          CRONOS_PRIVATE_KEY: ${{ secrets.CRONOS_PRIVATE_KEY }}
+          CRYPTOCOM_API_KEY: ${{ secrets.CRYPTOCOM_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          X402_SERVICE_URL: ${{ secrets.X402_SERVICE_URL }}
+          
+          # --- CONFIG ---
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPO_NAME: ${{ github.event.repository.name }}
+          CRONOS_CHAIN_ID: "338"
+          PAYOUT_ASSET: "USDC"
+          # Cronos Testnet devUSDC.e
+          USDC_CONTRACT: "0xc01efAaF7C5C61bEbFAeb358E1161b537b8bC0e0"
+          
+        run: python gitpay/agent/action_runner.py

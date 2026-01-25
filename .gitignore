@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+
+# Build Outputs
+dist/
+build/
+.next/
+out/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# System Files
+.DS_Store
+*.log
+*.sqlite
+*.db

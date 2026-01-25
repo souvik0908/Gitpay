@@ -1,0 +1,8 @@
+{
+  "action": "closed",
+  "pull_request": {
+    "number": 1,
+    "merged": true,
+    "body": "Closes #5\n\nWallet: 0x1111111111111111111111111111111111111111"
+  }
+}
