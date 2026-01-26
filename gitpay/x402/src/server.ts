@@ -1,41 +1,32 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import axios from "axios";
 import { Storage } from "./storage.js";
 import { Facilitator, CronosNetwork } from "@crypto.com/facilitator-client";
 import type { FundIntentResponse, FundRequestBody, PaymentRequirements } from "./types.js";
 import buyerDemoRoutes from "./routes/buyer-demo";
-
-
-
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
 app.use("/buyer-demo", buyerDemoRoutes);
 
-// FIX: Default to 8787 to match your Frontend configuration
 const PORT = Number(process.env.PORT || 8787);
 
 const TREASURY_WALLET = (process.env.TREASURY_WALLET || "").trim();
 const USDCE_CONTRACT = (process.env.USDCE_CONTRACT || "").trim();
-// FIX: Ensure network string maps correctly to SDK enum
 const X402_NETWORK_ENV = (process.env.X402_NETWORK || "cronos-testnet").trim();
-const FACILITATOR_URL = process.env.FACILITATOR_URL || "https://facilitator.cronoslabs.org/v2/x402";
 const DB_PATH = process.env.DB_PATH || "./gitpay_x402.db";
 
 if (!TREASURY_WALLET) throw new Error("Missing TREASURY_WALLET in .env");
 if (!USDCE_CONTRACT) throw new Error("Missing USDCE_CONTRACT in .env");
 
-// Helper to map env string to SDK Enum
 function getSdkNetwork(n: string): CronosNetwork {
   if (n === "cronos-testnet") return CronosNetwork.CronosTestnet;
   if (n === "cronos") return CronosNetwork.CronosMainnet;
-  return CronosNetwork.CronosTestnet; // Default
+  return CronosNetwork.CronosTestnet;
 }
 
-// FIX: Facilitator constructor only accepts 'network'. Base URL is internal.
 const facilitator = new Facilitator({
   network: getSdkNetwork(X402_NETWORK_ENV),
 });
@@ -55,8 +46,6 @@ function buildRequirements(amountBaseUnits: string): PaymentRequirements {
   };
 }
 
-// --- HELPER WRAPPERS (To handle SDK types cleanly) ---
-let activeBounties = [];
 async function facilitatorVerify(body: any) {
   return facilitator.verifyPayment({
     x402Version: 1,
@@ -84,6 +73,12 @@ app.post("/bounties/fund-intent", (req, res) => {
     return res.status(400).json({ error: "owner, repo, issueNumber, amountBaseUnits required" });
   }
 
+  // If already funded, return 200 + record (nice UX)
+  const existing = storage.getFunded(owner, repo, Number(issueNumber));
+  if (existing) {
+    return res.status(200).json({ ok: true, alreadyFunded: true, funded: existing });
+  }
+
   const requirements = buildRequirements(String(amountBaseUnits));
   const payload: FundIntentResponse = {
     error: "Payment Required",
@@ -95,7 +90,7 @@ app.post("/bounties/fund-intent", (req, res) => {
 });
 
 /**
- * Step 2: Fund a bounty (verify + settle)
+ * Step 2: Fund a bounty (verify + settle + store in sqlite)
  */
 app.post("/bounties/fund", async (req, res) => {
   const body = req.body as FundRequestBody;
@@ -115,7 +110,7 @@ app.post("/bounties/fund", async (req, res) => {
   const requirements = buildRequirements(String(body.amountBaseUnits));
 
   try {
-    // 1. Verify
+    // 1) Verify
     const verifyResp = await facilitatorVerify({
       paymentHeader: body.paymentHeader,
       paymentRequirements: requirements,
@@ -128,13 +123,12 @@ app.post("/bounties/fund", async (req, res) => {
       });
     }
 
-    // 2. Settle
+    // 2) Settle
     const settleResp = await facilitatorSettle({
       paymentHeader: body.paymentHeader,
       paymentRequirements: requirements,
     });
 
-    // Check for success event
     if (settleResp.event !== "payment.settled") {
       return res.status(402).json({
         error: "Payment settlement failed",
@@ -143,9 +137,6 @@ app.post("/bounties/fund", async (req, res) => {
       });
     }
 
-    const txHash = settleResp.txHash;
-    const from = settleResp.from;
-
     const record = {
       owner: body.owner,
       repo: body.repo,
@@ -153,13 +144,12 @@ app.post("/bounties/fund", async (req, res) => {
       asset: requirements.asset,
       amountBaseUnits: requirements.maxAmountRequired,
       treasuryWallet: requirements.payTo,
-      fundedTxHash: txHash,
-      fundedFrom: from,
+      fundedTxHash: settleResp.txHash,
+      fundedFrom: settleResp.from,
       fundedAt: new Date().toISOString(),
     };
 
     storage.upsertFunded(record);
-
     return res.status(200).json({ ok: true, funded: record });
   } catch (e: any) {
     console.error("Fund Error:", e);
@@ -169,35 +159,24 @@ app.post("/bounties/fund", async (req, res) => {
 });
 
 /**
- * Status Check used by the Python Agent
+ * ✅ Status endpoint for GitHub Actions agent (through Cloudflare tunnel)
+ * GET /bounties/status?owner=...&repo=...&issueNumber=...
  */
+app.get("/bounties/status", (req, res) => {
+  const owner = String(req.query.owner || "");
+  const repo = String(req.query.repo || "");
+  const issueNumber = Number(req.query.issueNumber || 0);
 
+  if (!owner || !repo || !issueNumber) {
+    return res.status(400).json({ ok: false, error: "owner, repo, issueNumber required" });
+  }
 
-app.post("/bounties/fund", (req, res) => {
-  const { owner, repo, issueNumber, amountBaseUnits, paymentHeader } = req.body;
+  const existing = storage.getFunded(owner, repo, issueNumber);
+  if (!existing) {
+    return res.status(404).json({ ok: true, funded: false });
+  }
 
-  // Mock logic for funding a bounty
-  const newBounty = {
-    owner,
-    repo,
-    issueNumber,
-    amountBaseUnits,
-    fundedTxHash: "mockTransactionHash1234",
-    fundedFrom: "mockWalletAddress1234",
-    fundedAt: new Date().toISOString(),
-  };
-
-  activeBounties.push(newBounty);
-
-  res.status(200).json({
-    ok: true,
-    funded: newBounty,
-  });
-});
-
-app.get("/bounties", (req, res) => {
-  // Return the active bounties (no DB, just in-memory)
-  res.status(200).json(activeBounties);
+  return res.status(200).json({ ok: true, funded: true, record: existing });
 });
 
 app.listen(PORT, () => {
