@@ -1,9 +1,12 @@
-flask==3.0.0
+Flask==3.0.0
 python-dotenv==1.0.1
-requests==2.32.3
+web3==6.11.1
+requests
+psycopg2-binary
+google-genai
 
-# Crypto.com Agent SDK
-cryptocom-agent-client==1.0.5
-
-# optional: better crypto primitives for signature verification
-PyNaCl==1.5.0
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-core>=0.3.0
+langchain-google-genai>=2.0.0
+langgraph

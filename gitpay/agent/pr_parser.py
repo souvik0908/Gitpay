@@ -4,7 +4,7 @@ from typing import Optional
 
 WALLET_RE = re.compile(r"(0x[a-fA-F0-9]{40})")
 ISSUE_RE = re.compile(r"(?:Closes|Fixes|Resolves)\s+#(\d+)", re.IGNORECASE)
-BOUNTY_RE = re.compile(r"\[(\d+)\s*(USDC|CRO)\]", re.IGNORECASE)
+BOUNTY_RE = re.compile(r"\[(\d+(?:\.\d+)?)\s*(USDC|CRO)\]", re.IGNORECASE)
 
 
 @dataclass
