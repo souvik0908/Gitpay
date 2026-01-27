@@ -25,6 +25,11 @@ def get_issue(owner: str, repo: str, issue_number: int) -> Dict[str, Any]:
     return r.json()
 
 
+def issue_has_label(issue: Dict[str, Any], label: str) -> bool:
+    labels = issue.get("labels", []) or []
+    return any((l.get("name") or "").lower() == label.lower() for l in labels)
+
+
 def list_pr_comments(owner: str, repo: str, pr_number: int) -> list[Dict[str, Any]]:
     r = requests.get(
         f"{GITHUB_API}/repos/{owner}/{repo}/issues/{pr_number}/comments",
@@ -48,6 +53,6 @@ def post_pr_comment(owner: str, repo: str, pr_number: int, body: str) -> None:
 def receipt_already_posted(owner: str, repo: str, pr_number: int) -> str | None:
     for c in list_pr_comments(owner, repo, pr_number):
         txt = (c.get("body") or "")
-        if "GitPay Receipt" in txt and ("Tx:" in txt or "Explorer:" in txt):
+        if "GitPay Receipt" in txt:
             return txt
     return None

@@ -1,4 +1,4 @@
-name: GitPay Payout Agent
+name: GitPay Auto Payout
 
 on:
   pull_request:
@@ -10,29 +10,41 @@ permissions:
   pull-requests: write
 
 jobs:
-  pay_contributor:
+  payout:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
-          pip install -r gitpay/agent/requirements.txt
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Run Payout Agent
+      - name: Run Action Runner
         env:
-          CRONOS_PRIVATE_KEY: ${{ secrets.CRONOS_PRIVATE_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # GitHub-provided token (works only for this repo)
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          X402_SERVICE_URL: ${{ secrets.X402_SERVICE_URL }}
 
+          # your repo/env settings
+          GITHUB_REPO_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPO_NAME: ${{ github.event.repository.name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+
+          # your secrets
+          X402_SERVICE_URL: ${{ secrets.X402_SERVICE_URL }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          CRONOS_PRIVATE_KEY: ${{ secrets.CRONOS_PRIVATE_KEY }}
+
+          # optional toggles
           GEMINI_MODEL: gemini-2.5-flash
-          GITPAY_DEFAULT_BOUNTY: "1.0 USDC"
+          GITPAY_DRY_RUN: "0"
         run: |
-          python gitpay/agent/action_runner.py
+          python -m gitpay.agent.action_runner

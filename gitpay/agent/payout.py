@@ -1,10 +1,9 @@
 import os
 import logging
+import re
 from web3 import Web3
 from web3.middleware import geth_poa_middleware
-from dotenv import load_dotenv
 
-load_dotenv()
 logger = logging.getLogger("gitpay.payout")
 
 RPC_URL = "https://evm-t3.cronos.org"
@@ -22,18 +21,31 @@ ERC20_ABI = [
     {"constant": True, "inputs": [], "name": "decimals", "outputs": [{"name": "", "type": "uint8"}], "type": "function"},
 ]
 
+AMOUNT_ASSET_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(USDC)\s*$", re.IGNORECASE)
 
 def get_web3():
     w3 = Web3(Web3.HTTPProvider(RPC_URL))
     w3.middleware_onion.inject(geth_poa_middleware, layer=0)
     return w3
 
-
 def execute_payout(to_address: str, amount_desc: str) -> str | None:
+    """
+    Expects amount_desc like: '1 USDC'
+    """
     try:
         private_key = os.getenv("CRONOS_PRIVATE_KEY")
         if not private_key:
             logger.error("❌ Missing CRONOS_PRIVATE_KEY")
+            return None
+
+        m = AMOUNT_ASSET_RE.match(amount_desc or "")
+        if not m:
+            logger.error(f"❌ Invalid amount format (expected 'N USDC'): {amount_desc}")
+            return None
+
+        amount_float = float(m.group(1))
+        if amount_float <= 0:
+            logger.error(f"❌ Invalid amount: {amount_desc}")
             return None
 
         w3 = get_web3()
@@ -45,16 +57,12 @@ def execute_payout(to_address: str, amount_desc: str) -> str | None:
             return None
         to_address = Web3.to_checksum_address(to_address)
 
-        import re
-        nums = re.findall(r"[-+]?\d*\.\d+|\d+", amount_desc)
-        amount_float = float(nums[0]) if nums else 0.0
-        if amount_float <= 0:
-            logger.error(f"❌ Invalid amount: {amount_desc}")
-            return None
+        logger.info(f"🤖 Executing Transfer: {amount_float} USDC -> {to_address}")
 
-        logger.info(f"🤖 Executing Transfer: {amount_float} USDC to {to_address}")
-
-        contract = w3.eth.contract(address=Web3.to_checksum_address(USDC_CONTRACT_ADDRESS), abi=ERC20_ABI)
+        contract = w3.eth.contract(
+            address=Web3.to_checksum_address(USDC_CONTRACT_ADDRESS),
+            abi=ERC20_ABI,
+        )
         decimals = contract.functions.decimals().call()
         amount_wei = int(amount_float * (10 ** decimals))
 
@@ -70,7 +78,6 @@ def execute_payout(to_address: str, amount_desc: str) -> str | None:
         )
 
         signed_tx = w3.eth.account.sign_transaction(tx, private_key)
-
         raw = getattr(signed_tx, "rawTransaction", None) or getattr(signed_tx, "raw_transaction", None)
         if raw is None:
             raise AttributeError("SignedTransaction missing rawTransaction/raw_transaction")
@@ -85,5 +92,5 @@ def execute_payout(to_address: str, amount_desc: str) -> str | None:
         return None
 
     except Exception as e:
-        logger.error(f"❌ Payout Failed: {e}")
+        logger.exception(f"❌ Payout Failed: {e}")
         return None
