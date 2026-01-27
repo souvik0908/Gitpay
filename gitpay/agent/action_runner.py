@@ -111,6 +111,10 @@ def main():
 
     post_pr_comment(owner, repo, int(pr_number), receipt)
     logger.info("✅ Receipt posted.")
+    logger.info(f"🧾 parsed wallet={wallet} issue_number={issue_number}")
+    logger.info("🧾 receipt_already_posted() = True, exiting")
+
+
 
 
 if __name__ == "__main__":
