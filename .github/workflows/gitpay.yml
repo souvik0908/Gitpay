@@ -13,7 +13,6 @@ jobs:
   payout:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,26 +24,24 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip setuptools
+          python -m pip install --upgrade pip
+          # CRITICAL: Fix for Python 3.13 + Web3.py
+          pip install setuptools 
           pip install -r gitpay/agent/requirements.txt
 
       - name: Run Action Runner
         env:
-          # GitHub-provided token (works only for this repo)
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-          # your repo/env settings
           GITHUB_REPO_OWNER: ${{ github.repository_owner }}
           GITHUB_REPO_NAME: ${{ github.event.repository.name }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
-
-          # your secrets
           X402_SERVICE_URL: ${{ secrets.X402_SERVICE_URL }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           CRONOS_PRIVATE_KEY: ${{ secrets.CRONOS_PRIVATE_KEY }}
-
-          # optional toggles
-          GEMINI_MODEL: gemini-2.5-flash-lite
+          # Using the current stable flash model
+          GEMINI_MODEL: gemini-1.5-flash 
           GITPAY_DRY_RUN: "0"
         run: |
-          python -m gitpay.agent.action_runner
+          # Adding current directory to PYTHONPATH so imports work
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          python gitpay/agent/action_runner.py
