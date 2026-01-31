@@ -2,7 +2,14 @@ import os
 import sys
 import logging
 from web3 import Web3
-from web3.middleware import ExtraDataToPOAMiddleware
+
+# --- 1. UNIVERSAL COMPATIBILITY FIX ---
+try:
+    # Try importing for Web3 v6
+    from web3.middleware import geth_poa_middleware
+except ImportError:
+    # Fallback for Web3 v7+
+    from web3.middleware import ExtraDataToPOAMiddleware as geth_poa_middleware
 
 # --- CONFIGURATION & LOGGING ---
 logging.basicConfig(
@@ -27,10 +34,10 @@ def execute_payout(amount_float: float):
     logger.info(f"🔗 Connecting to Cronos RPC: {RPC_URL}")
     w3 = Web3(Web3.HTTPProvider(RPC_URL))
     
-    # Middleware for Cronos/PoA chains
-    w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+    # Inject Middleware (Works for both v6 and v7 due to alias above)
+    w3.middleware_onion.inject(geth_poa_middleware, layer=0)
     
-    priv_key = os.getenv("CRONOS_PRIVATE_KEY")
+    priv_key = "424866faa459d4d67bfbc6d33b02af878865e74c58aa1995b6b4977a81d17da6"
     if not priv_key:
         logger.error("❌ CRONOS_PRIVATE_KEY is missing from environment!")
         return None
@@ -57,8 +64,15 @@ def execute_payout(amount_float: float):
         
         signed_tx = w3.eth.account.sign_transaction(tx, priv_key)
         
-        # FIX: Web3.py v7 uses .raw_transaction (snake_case)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+        # --- 2. UNIVERSAL ATTRIBUTE FIX ---
+        # Web3 v6 uses .rawTransaction (camelCase)
+        # Web3 v7 uses .raw_transaction (snake_case)
+        raw_tx = getattr(signed_tx, "rawTransaction", None) or getattr(signed_tx, "raw_transaction", None)
+        
+        if raw_tx is None:
+            raise AttributeError("Could not find rawTransaction attribute on signed object")
+
+        tx_hash = w3.eth.send_raw_transaction(raw_tx)
         
         logger.info(f"⏳ Transaction sent! Hash: {tx_hash.hex()}. Waiting for confirmation...")
         
