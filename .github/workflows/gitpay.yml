@@ -6,11 +6,10 @@ on:
 
 permissions:
   contents: read
-  issues: write
-  pull-requests: write
 
 jobs:
   payout:
+    # Only run if the PR was actually merged (not just closed)
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
@@ -25,23 +24,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # CRITICAL: Fix for Python 3.13 + Web3.py
+          # Required for Web3.py on Python 3.12+
           pip install setuptools 
           pip install -r gitpay/agent/requirements.txt
 
       - name: Run Action Runner
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPO_OWNER: ${{ github.repository_owner }}
-          GITHUB_REPO_NAME: ${{ github.event.repository.name }}
-          GITHUB_EVENT_PATH: ${{ github.event_path }}
-          X402_SERVICE_URL: ${{ secrets.X402_SERVICE_URL }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          # The ONLY secret your current script needs
           CRONOS_PRIVATE_KEY: ${{ secrets.CRONOS_PRIVATE_KEY }}
-          # Using the current stable flash model
-          GEMINI_MODEL: gemini-1.5-flash 
-          GITPAY_DRY_RUN: "0"
         run: |
-          # Adding current directory to PYTHONPATH so imports work
+          # Ensure python can find your module
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           python gitpay/agent/action_runner.py
