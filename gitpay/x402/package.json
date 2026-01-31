@@ -11,12 +11,12 @@
   },
   "dependencies": {
     "@crypto.com/facilitator-client": "^1.0.4",
-    "axios": "^1.13.2",
+    "axios": "^1.13.4",
     "better-sqlite3": "^11.10.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "ethers": "^6.13.2",
-    "express": "^4.19.2",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "ethers": "^6.16.0",
+    "express": "^4.22.1",
     "knex": "^3.1.0",
     "sqlite3": "^5.1.7"
   },

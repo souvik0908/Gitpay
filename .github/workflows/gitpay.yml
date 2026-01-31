@@ -26,7 +26,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r gitpay/agent/requirements.txt
 
       - name: Run Action Runner
         env:
@@ -44,7 +44,7 @@ jobs:
           CRONOS_PRIVATE_KEY: ${{ secrets.CRONOS_PRIVATE_KEY }}
 
           # optional toggles
-          GEMINI_MODEL: gemini-2.5-flash
+          GEMINI_MODEL: gemini-2.5-flash-lite
           GITPAY_DRY_RUN: "0"
         run: |
           python -m gitpay.agent.action_runner

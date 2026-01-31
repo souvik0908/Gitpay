@@ -1,0 +1,12 @@
+{
+  "action": "closed",
+  "pull_request": {
+    "merged": true,
+    "number": 42,
+    "body": "Closes #1\n\nWallet: 0xfC18367F2c48104A387949392c27cbC8e906581A"
+  },
+  "repository": {
+    "name": "gitpay",
+    "owner": { "login": "souvik0908" }
+  }
+}
