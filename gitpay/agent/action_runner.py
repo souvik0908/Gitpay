@@ -2,7 +2,7 @@ import os
 import sys
 import logging
 from web3 import Web3
-from web3.middleware import geth_poa_middleware
+from web3.middleware import ExtraDataToPOAMiddleware
 
 # --- CONFIGURATION & LOGGING ---
 logging.basicConfig(
@@ -15,7 +15,6 @@ logger = logging.getLogger("gitpay.tx_only")
 RPC_URL = "https://evm-t3.cronos.org"
 CHAIN_ID = 338
 USDC_CONTRACT = "0xc01efAaF7C5C61bEbFAeb358E1161b537b8bC0e0"
-# Updated Wallet
 TEST_WALLET = "0x9496c5bB7397536Ae4aD729D88bA24d4c22DcF48"
 
 ERC20_ABI = [
@@ -27,7 +26,9 @@ ERC20_ABI = [
 def execute_payout(amount_float: float):
     logger.info(f"🔗 Connecting to Cronos RPC: {RPC_URL}")
     w3 = Web3(Web3.HTTPProvider(RPC_URL))
-    w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+    
+    # Middleware for Cronos/PoA chains
+    w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
     
     priv_key = os.getenv("CRONOS_PRIVATE_KEY")
     if not priv_key:
@@ -55,7 +56,10 @@ def execute_payout(amount_float: float):
         })
         
         signed_tx = w3.eth.account.sign_transaction(tx, priv_key)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        
+        # FIX: Web3.py v7 uses .raw_transaction (snake_case)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+        
         logger.info(f"⏳ Transaction sent! Hash: {tx_hash.hex()}. Waiting for confirmation...")
         
         receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
@@ -74,7 +78,6 @@ def execute_payout(amount_float: float):
 def main():
     logger.info("🚀 GitPay Direct Transaction Runner starting...")
     
-    # Directly execute 1.0 USDC payout
     tx_result = execute_payout(1.0)
     
     if tx_result:
