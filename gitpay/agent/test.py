@@ -1,19 +1,87 @@
 import os
+import json
+import logging
+import sys
+# 1. Import dotenv
 from dotenv import load_dotenv
-from langchain_agent import process_with_ai
 
+# 2. LOAD .ENV FILE IMMEDIATELY
+# This looks for a .env file in the current directory
 load_dotenv()
 
-os.environ.setdefault("GITPAY_DRY_RUN", "1")
+# Import the main function from your action_runner
+try:
+    from action_runner import main
+except ImportError:
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from action_runner import main
 
-fake_pr_body = """
-Hey! I fixed the bug in the login page.
-Please send my bounty here:
-Wallet: 0xD10E14a380614C52f10b5658de86A11f0477c556
-Thanks!
-"""
+# --- MOCK CONFIGURATION ---
+MOCK_EVENT_FILE = "mock_event.json"
 
-print("🧪 Testing AI Agent...")
-result = process_with_ai(fake_pr_body, issue_number=1)
-print("\n--- FINAL RESULT ---")
-print(result)
+mock_event_data = {
+    "pull_request": {
+        "merged": True,
+        "title": "Fixing the critical payment bug",
+        "body": "This PR finally fixes the issue. Please pay to my wallet: 0x9496c5bB7397536Ae4aD729D88bA24d4c22DcF48. Closes #1",
+        "html_url": "https://github.com/souvik0908/gitpay/pull/2"
+    },
+    "repository": {
+        "owner": {"login": "souvik0908"},
+        "name": "gitpay"
+    }
+}
+
+def run_test():
+    print("🧪 PREPARING LOCAL TEST...")
+
+    # Create mock file
+    with open(MOCK_EVENT_FILE, "w") as f:
+        json.dump(mock_event_data, f)
+
+    # Set Paths
+    os.environ["GITHUB_EVENT_PATH"] = MOCK_EVENT_FILE
+    os.environ["X402_SERVICE_URL"] = "http://localhost:8787"
+    os.environ["GITHUB_REPO_OWNER"] = "souvik0908"
+    os.environ["GITHUB_REPO_NAME"] = "gitpay"
+
+    # DEBUG: Verify keys are loaded
+    google_key = os.getenv("GOOGLE_API_KEY")
+    cronos_key = os.getenv("CRONOS_PRIVATE_KEY")
+    
+    if not google_key:
+        print("❌ ERROR: GOOGLE_API_KEY is still missing! Check your .env file location.")
+        # Optional: Print current working directory to help debug
+        print(f"   Current Directory: {os.getcwd()}")
+        return
+    else:
+        # Print first few chars to verify it's loaded (don't print full key)
+        print(f"✅ GOOGLE_API_KEY found (starts with {google_key[:4]}...)")
+
+    if not cronos_key:
+        print("❌ ERROR: CRONOS_PRIVATE_KEY is missing!")
+        return
+    else:
+        print("✅ CRONOS_PRIVATE_KEY found.")
+
+    print("\n🚀 STARTING RUNNER...")
+    print("=" * 50)
+
+    try:
+        main()
+        print("=" * 50)
+        print("✅ TEST COMPLETED.")
+    except SystemExit as e:
+        print("=" * 50)
+        if e.code == 0:
+            print("✅ Runner exited successfully.")
+        else:
+            print(f"❌ Runner failed with code {e.code}.")
+    except Exception as e:
+        print(f"🔥 Runner crashed: {e}")
+    finally:
+        if os.path.exists(MOCK_EVENT_FILE):
+            os.remove(MOCK_EVENT_FILE)
+
+if __name__ == "__main__":
+    run_test()
