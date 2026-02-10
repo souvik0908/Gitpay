@@ -26,6 +26,83 @@ GitPay transforms GitHub Pull Requests into trustless financial settlement event
 * **Blockchain:** Cronos EVM Testnet (Chain ID 338).
 
 ---
+## 🧠 GitPay HLD Diagram 
+```mermaid
+graph TD
+    %% --- SUBGRAPHS ---
+    
+    subgraph "User Layer"
+        M[Maintainer]
+        C[Contributor]
+    end
+
+    subgraph "Frontend Layer - Next.js"
+        UI[GitPay Dashboard]
+        Wallet[User Wallet - Ethers.js]
+    end
+
+    subgraph "Settlement Layer - Local Node"
+        API[x402 Service - Express]
+        DB[(SQLite - Escrow Storage)]
+        Facilitator[Facilitator Client Library]
+        T[Cloudflare Tunnel]
+    end
+
+    subgraph "Automation Layer - GitHub Actions"
+        GH[GitHub Repository]
+        Workflow[GitPay Payout Workflow]
+        Agent[GitPay AI Agent - Python]
+    end
+
+    subgraph "Blockchain & External Services"
+        Cronos[Cronos Testnet]
+        Treasury[(Treasury Wallet / Vault)]
+        Gemini[Google Gemini API]
+    end
+
+    %% --- FUNDING FLOW (x402 Protocol) ---
+    
+    %% 1. Initial Request
+    M -->|1. Click 'Fund Issue'| UI
+    UI -->|2. POST /fund-intent| API
+    
+    %% 2. The 402 Handshake (Using -.-> for Response)
+    API -.->|3. 402 Payment Required| UI
+    
+    %% 3. Signing
+    UI -->|4. Request Signature EIP-712| Wallet
+    Wallet -->|5. Signs Payment Header| UI
+    
+    %% 4. Settlement
+    UI -->|6. POST /fund With Signed Header| API
+    API -->|7. Verify & Settle| Facilitator
+    Facilitator -->|8. Broadcast Tx| Cronos
+    Cronos -.->|Funds Moved| Treasury
+    
+    %% 5. Persistence
+    Facilitator -.->|9. Settlement Confirmed| API
+    API -->|10. Store 'Funded' State| DB
+    T <-->|Exposes DB Read-Only| API
+
+    %% --- PAYOUT FLOW (Agentic) ---
+
+    C -->|11. Opens PR| GH
+    M -->|12. Merges PR| GH
+    GH -->|13. Trigger: PR Closed| Workflow
+    Workflow -->|Runs| Agent
+    
+    Agent -->|14. Parse Wallet & Issue| Gemini
+    Agent -->|15. GET /bounties/status| T
+    
+    %% Agent Payout
+    Agent -->|16. Execute Payout| Treasury
+    Treasury -->|17. Transfer USDC| C
+
+    %% Styling for clarity
+    style Treasury fill:#000,stroke:#333
+    style API fill:#000,stroke:#333
+    style Facilitator fill:#000,stroke:#333
+```
 
 ## 🚀 Getting Started
 
