@@ -1,12 +1,13 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { ethers } from 'ethers'
 
 type WalletState = {
   address: string | null
   chainId: number | null
   isConnecting: boolean
+  connectError: string | null
   provider: ethers.BrowserProvider | null
   signer: ethers.Signer | null
   connect: () => Promise<void>
@@ -29,26 +30,28 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [address, setAddress] = useState<string | null>(null)
   const [chainId, setChainId] = useState<number | null>(null)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [connectError, setConnectError] = useState<string | null>(null)
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null)
   const [signer, setSigner] = useState<ethers.Signer | null>(null)
 
-  const disconnect = () => {
+  const disconnect = useCallback(() => {
     setAddress(null)
     setChainId(null)
     setSigner(null)
-    // provider can remain, but it’s fine to keep it
-  }
+    setProvider(null)
+    setConnectError(null)
+  }, [])
 
-  const refresh = async (p: ethers.BrowserProvider) => {
+  const refresh = useCallback(async (p: ethers.BrowserProvider) => {
     const s = await p.getSigner()
     const a = await s.getAddress()
     const n = await p.getNetwork()
     setSigner(s)
     setAddress(a)
     setChainId(Number(n.chainId))
-  }
+  }, [])
 
-  const ensureCronosTestnet = async () => {
+  const ensureCronosTestnet = useCallback(async () => {
     if (!window.ethereum) return
     const hexChainId = '0x' + CRONOS_TESTNET_CHAIN_ID.toString(16)
 
@@ -76,12 +79,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         throw err
       }
     }
-  }
+  }, [])
 
-  const connect = async () => {
-    if (!window.ethereum) throw new Error('MetaMask not found')
+  const connect = useCallback(async () => {
+    if (!window.ethereum) {
+      setConnectError('MetaMask not found. Please install MetaMask and retry.')
+      return
+    }
 
     setIsConnecting(true)
+    setConnectError(null)
     try {
       // Request accounts
       await window.ethereum.request({ method: 'eth_requestAccounts' })
@@ -93,10 +100,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       await ensureCronosTestnet()
 
       await refresh(p)
+    } catch (err: any) {
+      const msg =
+        err?.code === 4001
+          ? 'Connection rejected. Please approve the MetaMask request to continue.'
+          : err?.message || 'Failed to connect wallet.'
+      setConnectError(msg)
     } finally {
       setIsConnecting(false)
     }
-  }
+  }, [ensureCronosTestnet, refresh])
 
   // keep state synced with metamask changes
   useEffect(() => {
@@ -126,20 +139,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       window.ethereum.removeListener?.('accountsChanged', onAccountsChanged)
       window.ethereum.removeListener?.('chainChanged', onChainChanged)
     }
-  }, [provider])
+  }, [provider, disconnect, refresh])
 
   const value = useMemo(
     () => ({
       address,
       chainId,
       isConnecting,
+      connectError,
       provider,
       signer,
       connect,
       disconnect,
       ensureCronosTestnet,
     }),
-    [address, chainId, isConnecting, provider, signer]
+    [address, chainId, isConnecting, connectError, provider, signer, connect, disconnect, ensureCronosTestnet]
   )
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>

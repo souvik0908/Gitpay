@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { Menu, Wallet, Github } from 'lucide-react'  // Replaced Bug with Github
+import { toast } from 'sonner'
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -36,7 +38,14 @@ export function SiteHeader() {
   const pathname = usePathname()
 
   // ✅ GLOBAL WALLET
-  const { address, connect, disconnect, isConnecting } = useWallet()
+  const { address, connect, disconnect, isConnecting, connectError } = useWallet()
+
+  // Show a toast whenever a connection error occurs
+  useEffect(() => {
+    if (connectError) {
+      toast.error('Wallet connection failed', { description: connectError })
+    }
+  }, [connectError])
 
   const principalLabel = address
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
