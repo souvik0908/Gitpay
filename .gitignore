@@ -20,3 +20,4 @@ out/
 *.log
 *.sqlite
 *.db
+frontend/tsconfig.tsbuildinfo
